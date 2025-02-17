@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id        String     @id @default(cuid()) @map("_id")
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  resources Resource[]
+}
+
+model Resource {
+  id                String     @id @default(cuid()) @map("_id")
+  name              String
+  endpoint          String
+  template          Json
+  endpointTemplate  Json?      @default("\"$mockData\"")
+  useIncrementalIds Boolean    @default(false)
+  allowGet          Boolean    @default(true)
+  allowGetById      Boolean    @default(true)
+  allowPost         Boolean    @default(true)
+  allowPut          Boolean    @default(true)
+  allowDelete       Boolean    @default(true)
+  projectId         String
+  project           Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data              MockData[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@unique([projectId, endpoint])
+  @@index([projectId])
+}
+
+model MockData {
+  id         String   @id @default(cuid()) @map("_id")
+  data       Json
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([resourceId, id], name: "resourceId_id")
+}
