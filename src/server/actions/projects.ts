@@ -1,7 +1,7 @@
-'use server'
+"use server";
 
-import { revalidatePath } from 'next/cache';
-import { prisma } from '../infrastructure/prisma/client';
+import { revalidatePath } from "next/cache";
+import { prisma } from "../infrastructure/prisma/client";
 
 export async function createProject(data: { name: string }) {
   const project = await prisma.project.create({
@@ -9,17 +9,27 @@ export async function createProject(data: { name: string }) {
       name: data.name,
     },
   });
-  
-  revalidatePath('/projects');
+
+  revalidatePath("/projects");
   return project;
 }
 
 export async function getProjects() {
+  try {
+    return prisma.project.findMany({
+      include: {
+        resources: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export async function getProjectsWithoutResources() {
   return prisma.project.findMany({
-    include: {
-      resources: true,
-    },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
   });
 }
 
@@ -37,7 +47,7 @@ export async function deleteProject(id: string) {
   await prisma.project.delete({
     where: { id },
   });
-  
-  revalidatePath('/projects');
-  revalidatePath('/');
-} 
+
+  revalidatePath("/projects");
+  revalidatePath("/");
+}

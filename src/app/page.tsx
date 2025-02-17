@@ -1,10 +1,13 @@
+"use server";
+
 import Link from "next/link";
 import { getProjects } from "@/server/actions/projects";
 
 const ROOT_URL = process.env.ROOT_SITE;
 
 export default async function Home() {
-  const projects = await getProjects();
+  const projects = (await getProjects()) ?? [];
+  console.log(projects);
   const baseUrl = ROOT_URL;
 
   return (
