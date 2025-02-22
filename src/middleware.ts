@@ -1,27 +1,42 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-export function middleware(request: NextRequest) {
+// Define public routes that don't require authentication
+const publicRoutes = ["/", "/sign-in", "/sign-up"];
+
+// Helper function to check if a route is public
+function isPublicRoute(request: NextRequest): boolean {
+  const { pathname } = request.nextUrl;
+  return publicRoutes.some(route => pathname.startsWith(route));
+}
+
+// Combine Clerk auth with custom API routing
+export default clerkMiddleware(async (auth, request) => {
   const { pathname } = request.nextUrl;
 
-  // Match URLs like /{projectId}/api/{version}/{resourceName}
+  // Handle API routes first
   const apiPathRegex = /^\/([^\/]+)\/api\/([^\/]+)\/([^\/]+)(\/.*)?$/;
   const match = pathname.match(apiPathRegex);
 
   if (match) {
     const [, projectId, version, resourceName, rest = ''] = match;
-    // Rewrite to our actual API route
     const newUrl = request.nextUrl.clone();
     newUrl.pathname = `/api/${projectId}/api/${version}/${resourceName}${rest}`;
     return NextResponse.rewrite(newUrl);
   }
 
+  // Then handle authentication
+  if (!isPublicRoute(request)) {
+    await auth.protect();
+  }
+
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [
-    // Match all paths except /api, _next, static files, etc.
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    // Match all paths except static files
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 }; 
