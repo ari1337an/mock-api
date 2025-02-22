@@ -16,14 +16,16 @@ export async function createProject(data: { name: string }) {
 
 export async function getProjects() {
   try {
-    return prisma.project.findMany({
+    const projects = await prisma.project.findMany({
       include: {
         resources: true,
       },
       orderBy: { createdAt: "desc" },
     });
+    return projects;
   } catch (error) {
-    console.error(error);
+    console.error("Database connection error:", error);
+    return []; // Return empty array as fallback
   }
 }
 

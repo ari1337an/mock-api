@@ -1,4 +1,4 @@
-import { TemplateField } from "@/types/template";
+import type { TemplateField } from "../types/template";
 
 type TemplateValue = string | TemplateValue[] | { [key: string]: TemplateValue };
 
@@ -21,7 +21,7 @@ export const generateTemplate = (fields: TemplateField[]): Record<string, Templa
         }
         acc[field.key] = values;
       } else if (field.arrayType === "object" && field.items.fields) {
-        // Generate a proper array of objects
+        // Generate array of objects
         const objects = [];
         for (let i = 0; i < count; i++) {
           objects.push(generateTemplate(field.items.fields || []));
