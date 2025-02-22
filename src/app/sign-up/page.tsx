@@ -1,15 +1,15 @@
-import { SignIn } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Sign In - Tensorify Mock",
-    description: "Access your account by signing in",
+    title: "Sign Up - Tensorify Mock",
+    description: "Create a new account",
 };
 
 export default function Page() {
     return (
         <div className="min-h-screen flex flex-row items-center justify-center">
-            <SignIn />
+            <SignUp />
         </div>
     );
 }
