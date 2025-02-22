@@ -34,7 +34,7 @@ export async function getProjectsWithoutResources() {
 }
 
 export async function getProject(id: string) {
-  return prisma.project.findUnique({
+  return await prisma.project.findUnique({
     where: { id },
     include: {
       resources: true,
