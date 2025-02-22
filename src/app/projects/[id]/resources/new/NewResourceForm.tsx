@@ -260,8 +260,8 @@ export default function NewResourceForm({ projectId }: NewResourceFormProps) {
     }
   };
 
-  const generateTemplate = (templateFields: TemplateField[] = fields): TemplateValue => {
-    return templateFields.reduce((acc: TemplateValue, field) => {
+  const generateTemplate = (templateFields: TemplateField[] = fields): Record<string, any> => {
+    return templateFields.reduce((acc: Record<string, any>, field) => {
       if (!field.key) return acc;
 
       if (field.type === "simple" && field.module && field.method) {
@@ -272,12 +272,17 @@ export default function NewResourceForm({ projectId }: NewResourceFormProps) {
         const count = field.count || 3;
         
         if (field.arrayType === "simple" && field.items.module && field.items.method) {
-          // For simple arrays, create an array of faker methods
-          acc[field.key] = Array(count).fill(`$${field.items.module}.${field.items.method}`);
+          // Create a proper array using Array constructor and map
+          acc[field.key] = Array.from(
+            { length: count }, 
+            () => `$${field.items!.module}.${field.items!.method}`
+          );
         } else if (field.arrayType === "object" && field.items.fields) {
-          // For object arrays, create an array of object templates
-          const itemTemplate = generateTemplate(field.items.fields);
-          acc[field.key] = Array(count).fill(itemTemplate);
+          // Create array of objects
+          acc[field.key] = Array.from(
+            { length: count }, 
+            () => generateTemplate(field.items!.fields || [])
+          );
         }
       }
       return acc;
@@ -301,7 +306,7 @@ export default function NewResourceForm({ projectId }: NewResourceFormProps) {
                 {renderFields(field.fields, depth + 1)}
                 <button
                   type="button"
-                  onClick={() => addField(field.fields)}
+                  onClick={() => field.fields && addField(field.fields)}
                   className="ml-8 mt-2 py-2 px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700"
                 >
                   Add Nested Field
@@ -326,7 +331,7 @@ export default function NewResourceForm({ projectId }: NewResourceFormProps) {
                     {renderFields(field.items.fields || [], depth + 1)}
                     <button
                       type="button"
-                      onClick={() => addField(field.items.fields)}
+                      onClick={() => field.items?.fields && addField(field.items.fields)}
                       className="ml-8 mt-2 py-2 px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700"
                     >
                       Add Object Field
@@ -343,11 +348,10 @@ export default function NewResourceForm({ projectId }: NewResourceFormProps) {
 
   const handleTemplateChange = (value: string) => {
     try {
-      // Validate JSON
       JSON.parse(value);
       setEditorState({ ...editorState, template: value });
       setError(null);
-    } catch (e) {
+    } catch (_) { // Use underscore to indicate intentionally unused variable
       setError("Invalid JSON format");
     }
   };

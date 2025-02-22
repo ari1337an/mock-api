@@ -109,19 +109,51 @@ export function processFakerTemplate(template: FakerTemplate): FakerTemplate {
       continue;
     }
 
-    if (typeof value === "string" && value.startsWith("$")) {
+    // Add array handling
+    if (Array.isArray(value)) {
+      // Process array values
+      result[key] = value.map(item => {
+        if (typeof item === "string" && item.startsWith("$")) {
+          try {
+            const methodString = item.substring(1);
+            const { path, args } = parseMethodCall(methodString);
+            
+            let fakerModule: any = faker;
+            for (let i = 0; i < path.length - 1; i++) {
+              fakerModule = fakerModule[path[i]];
+              if (!fakerModule) {
+                throw new Error(`Invalid faker path: ${path.slice(0, i + 1).join(".")}`);
+              }
+            }
+
+            const methodName = path[path.length - 1];
+            const method = fakerModule[methodName];
+
+            if (typeof method !== "function") {
+              throw new Error(`Invalid faker method: ${path.join(".")}`);
+            }
+
+            return args.length ? method(...args) : method();
+          } catch (error) {
+            console.warn(`Failed to process faker path: ${item}`, error);
+            return item;
+          }
+        } else if (typeof item === "object" && item !== null) {
+          return processFakerTemplate(item as FakerTemplate);
+        }
+        return item;
+      });
+    } else if (typeof value === "string" && value.startsWith("$")) {
+      // Existing string processing logic
       try {
         const methodString = value.substring(1);
         const { path, args } = parseMethodCall(methodString);
 
-        // Traverse the faker object to get the desired method
         let fakerModule: any = faker;
         for (let i = 0; i < path.length - 1; i++) {
           fakerModule = fakerModule[path[i]];
           if (!fakerModule) {
-            throw new Error(
-              `Invalid faker path: ${path.slice(0, i + 1).join(".")}`
-            );
+            throw new Error(`Invalid faker path: ${path.slice(0, i + 1).join(".")}`);
           }
         }
 
@@ -132,7 +164,6 @@ export function processFakerTemplate(template: FakerTemplate): FakerTemplate {
           throw new Error(`Invalid faker method: ${path.join(".")}`);
         }
 
-        // Call the method with arguments
         result[key] = args.length ? method(...args) : method();
       } catch (error) {
         console.warn(`Failed to process faker path: ${value}`, error);
