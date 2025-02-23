@@ -9,6 +9,8 @@ import { IdTypeToggle } from "@/app/components/IdTypeToggle";
 import { ApiEndpointsSection } from "@/app/components/ApiEndpointsSection";
 import { EndpointTemplateEditor } from "@/app/components/EndpointTemplateEditor";
 import { CodeGenerator } from "@/components/resource/CodeGenerator";
+import { ResourceTemplateEditor } from "@/components/resource/ResourceTemplateEditor";
+import { ResourceTemplateWrapper } from "@/components/resource/ResourceTemplateWrapper";
 
 const ROOT_URL = process.env.ROOT_SITE;
 
@@ -87,11 +89,9 @@ export default async function ResourcePage({ params }: PageProps) {
           />
           <div className="mt-6 bg-gray-800 shadow-xl sm:rounded-lg border border-gray-700">
             <div className="px-4 py-5 sm:p-6">
-              <EditableTemplate
-                template={resource.template as TemplateObject}
+              <ResourceTemplateWrapper
                 resourceId={resource.id}
-                currentCount={currentCount}
-                _projectId={project.id}
+                template={resource.template as Record<string, unknown>}
               />
             </div>
           </div>
