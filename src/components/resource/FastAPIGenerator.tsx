@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { generateFastAPICode } from '@/lib/generators/fastapi';
-import type { TemplateField } from '@/types/template';
 
 interface FastAPIGeneratorProps {
   projectName: string;
   resourceName: string;
   version: string;
-  template: TemplateField[];
+  template: Record<string, unknown>;
 }
 
 export function FastAPIGenerator({

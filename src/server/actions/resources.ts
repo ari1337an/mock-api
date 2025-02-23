@@ -145,18 +145,26 @@ export async function generateData(
 
 export async function updateResourceTemplate(
   resourceId: string,
-  template: TemplateObject,
-  count: number
+  template: TemplateObject
 ) {
   try {
+    const resource = await prisma.resource.findUnique({
+      where: { id: resourceId }
+    });
+
+    if (!resource) {
+      throw new Error("Resource not found");
+    }
+
     const updatedResource = await prisma.resource.update({
       where: { id: resourceId },
       data: { template },
     });
 
-    // Regenerate data with new template
-    await generateData(updatedResource.projectId, resourceId, count);
+    // Always regenerate data when template changes
+    await generateData(updatedResource.projectId, resourceId, 10); // or whatever default count you want
 
+    revalidatePath(`/projects/${updatedResource.projectId}/resources/${resourceId}`);
     return { success: true, resource: updatedResource };
   } catch (error) {
     throw new Error(

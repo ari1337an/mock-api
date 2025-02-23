@@ -14,5 +14,6 @@ export interface GeneratorParams {
   projectName: string;
   resourceName: string;
   version: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   template: Record<string, any>;
 } 

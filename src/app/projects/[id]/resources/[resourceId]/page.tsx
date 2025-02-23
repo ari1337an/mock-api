@@ -1,15 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProject } from "@/server/actions/projects";
-import { getResource, TemplateObject } from "@/server/actions/resources";
+import { getResource} from "@/server/actions/resources";
 import { DeleteResourceButton } from "@/app/resources/DeleteResourceButton";
 import { GenerateDataSection } from "./GenerateDataSection";
-import { EditableTemplate } from "@/app/components/EditableTemplate";
 import { IdTypeToggle } from "@/app/components/IdTypeToggle";
 import { ApiEndpointsSection } from "@/app/components/ApiEndpointsSection";
 import { EndpointTemplateEditor } from "@/app/components/EndpointTemplateEditor";
 import { CodeGenerator } from "@/components/resource/CodeGenerator";
-import { ResourceTemplateEditor } from "@/components/resource/ResourceTemplateEditor";
 import { ResourceTemplateWrapper } from "@/components/resource/ResourceTemplateWrapper";
 
 const ROOT_URL = process.env.ROOT_SITE;

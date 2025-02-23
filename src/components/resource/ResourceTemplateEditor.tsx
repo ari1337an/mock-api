@@ -55,9 +55,10 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editorState, setEditorState] = useState({
-    mode: "visual" as const,
+    mode: "visual",
     template: JSON.stringify(template, null, 2),
   });
+  const [isSaving, setIsSaving] = useState(false);
   
   // Use ref to track initial load
   const isInitialized = useRef(false);
@@ -122,17 +123,36 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
 
   const handleSave = async (newTemplate: Record<string, unknown>) => {
     try {
+      setIsSaving(true);
       await onUpdate(newTemplate);
       setError(null);
     } catch (error) {
+      console.error("Error saving template:", error);
       setError("Failed to update template");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-gray-100">Data Template Builder</h2>
+        <button
+          onClick={() => handleSave(generateTemplate(fields))}
+          disabled={isSaving}
+          className={`px-4 py-2 rounded-md text-white ${
+            isSaving 
+              ? "bg-blue-500 cursor-not-allowed" 
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
+        >
+          {isSaving ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+      
       <TemplateEditor
-        mode={editorState.mode}
+        mode={editorState.mode as "visual" | "manual"}
         template={editorState.template}
         fields={fields}
         onAddField={() => setFields([...fields, { key: "", type: "simple" }])}
