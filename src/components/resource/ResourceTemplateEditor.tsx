@@ -55,12 +55,13 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editorState, setEditorState] = useState({
-    mode: "visual",
+    mode: "visual" as "visual" | "manual",
     template: JSON.stringify(template, null, 2),
+    manualTemplate: JSON.stringify(template, null, 2),
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   
-  // Use ref to track initial load
   const isInitialized = useRef(false);
 
   // Initialize fields only once on mount
@@ -76,13 +77,62 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
     }
   }, [template]);
 
-  // Sync fields with manual template when switching modes
-  useEffect(() => {
-    if (editorState.mode === "manual") {
-      const template = JSON.stringify(generateTemplate(fields), null, 2);
-      setEditorState(prev => ({ ...prev, template }));
+  // Handle mode switching
+  const handleModeChange = (newMode: "visual" | "manual") => {
+    try {
+      if (newMode === "manual") {
+        // When switching to manual, update the manual template with current fields
+        const template = JSON.stringify(generateTemplate(fields), null, 2);
+        setEditorState(prev => ({ 
+          ...prev, 
+          mode: newMode,
+          manualTemplate: template 
+        }));
+      } else {
+        // When switching to visual, parse the manual template to fields
+        const parsed = JSON.parse(editorState.manualTemplate);
+        const newFields = parseTemplateToFields(parsed);
+        setFields(newFields);
+        setEditorState(prev => ({ ...prev, mode: newMode }));
+      }
+      setError(null);
+    } catch (error) {
+      setError("Invalid JSON format");
     }
-  }, [editorState.mode, fields]);
+  };
+
+  const handleTemplateChange = (value: string) => {
+    // Update the template without validation
+    setEditorState(prev => ({ ...prev, manualTemplate: value }));
+    setIsDirty(true);
+    
+    // Optional: Try to validate after a delay
+    try {
+      JSON.parse(value);
+      setError(null);
+    } catch {
+      setError("Invalid JSON format");
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      // Validate JSON only when saving
+      const newTemplate = editorState.mode === "visual" 
+        ? generateTemplate(fields)
+        : JSON.parse(editorState.manualTemplate); // This will throw if invalid
+      
+      setIsSaving(true);
+      await onUpdate(newTemplate);
+      setIsDirty(false);
+      setError(null);
+    } catch (error) {
+      console.error("Error saving template:", error);
+      setError("Failed to update template: Invalid JSON format");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleUpdateField = (field: TemplateField, updates: Partial<TemplateField>) => {
     const updateFieldInArray = (fieldsArray: TemplateField[]): TemplateField[] => {
@@ -107,31 +157,7 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
 
     const updatedFields = updateFieldInArray(fields);
     setFields(updatedFields);
-    handleSave(generateTemplate(updatedFields));
-  };
-
-  const handleTemplateChange = async (value: string) => {
-    try {
-      const parsed = JSON.parse(value);
-      setEditorState({ ...editorState, template: value });
-      handleSave(parsed);
-      setError(null);
-    } catch {
-      setError("Invalid JSON format");
-    }
-  };
-
-  const handleSave = async (newTemplate: Record<string, unknown>) => {
-    try {
-      setIsSaving(true);
-      await onUpdate(newTemplate);
-      setError(null);
-    } catch (error) {
-      console.error("Error saving template:", error);
-      setError("Failed to update template");
-    } finally {
-      setIsSaving(false);
-    }
+    setIsDirty(true);
   };
 
   return (
@@ -139,26 +165,32 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-100">Data Template Builder</h2>
         <button
-          onClick={() => handleSave(generateTemplate(fields))}
-          disabled={isSaving}
+          onClick={handleSave}
+          disabled={isSaving || !isDirty}
           className={`px-4 py-2 rounded-md text-white ${
-            isSaving 
-              ? "bg-blue-500 cursor-not-allowed" 
-              : "bg-blue-600 hover:bg-blue-700"
+            !isDirty 
+              ? "bg-gray-600 cursor-not-allowed"
+              : isSaving 
+                ? "bg-blue-500 cursor-not-allowed" 
+                : "bg-blue-600 hover:bg-blue-700"
           }`}
         >
-          {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving ? "Saving..." : isDirty ? "Save Changes" : "Saved"}
         </button>
       </div>
       
       <TemplateEditor
-        mode={editorState.mode as "visual" | "manual"}
-        template={editorState.template}
+        mode={editorState.mode}
+        template={editorState.manualTemplate}
         fields={fields}
-        onAddField={() => setFields([...fields, { key: "", type: "simple" }])}
+        onAddField={() => {
+          setFields([...fields, { key: "", type: "simple" }]);
+          setIsDirty(true);
+        }}
         onUpdateField={handleUpdateField}
         onRemoveField={(fieldToRemove) => {
           setFields(fields.filter(f => f !== fieldToRemove));
+          setIsDirty(true);
         }}
         onAddNestedField={(parentField) => {
           const updateFieldInArray = (fieldsArray: TemplateField[]): TemplateField[] => {
@@ -176,9 +208,10 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
             });
           };
           setFields(updateFieldInArray(fields));
+          setIsDirty(true);
         }}
         onTemplateChange={handleTemplateChange}
-        onModeChange={(mode) => setEditorState({ ...editorState, mode })}
+        onModeChange={handleModeChange}
       />
       {error && <p className="text-sm text-red-500">{error}</p>}
     </div>

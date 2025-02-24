@@ -1,7 +1,7 @@
 export enum CodeGeneratorType {
-  FASTAPI = 'fastapi',
-  EXPRESS = 'express',
-  REACT = 'react'
+  NEXTJS = 'Next.js',
+  EXPRESS = 'Express.js',
+  FASTAPI = 'FastAPI'
 }
 
 export interface CodeGenerator {
@@ -14,6 +14,17 @@ export interface GeneratorParams {
   projectName: string;
   resourceName: string;
   version: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  template: Record<string, any>;
-} 
+  template: Record<string, unknown>;
+  allowedEndpoints?: {
+    get: boolean;
+    getById: boolean;
+    post: boolean;
+    put: boolean;
+    delete: boolean;
+  };
+}
+
+export { generateFastAPICode } from './fastapi';
+export { generateExpressCode } from './express';
+export { generateReactCode } from './react';
+export { generateNextJSRoute } from './nextjs'; 

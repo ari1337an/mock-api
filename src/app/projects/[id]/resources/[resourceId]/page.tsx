@@ -111,6 +111,13 @@ export default async function ResourcePage({ params }: PageProps) {
             resourceName={resource.name}
             version={resource.endpoint.split('/')[0]}
             template={resource.template as Record<string, unknown>}
+            initialEndpoints={{
+              get: resource.allowGet,
+              getById: resource.allowGetById,
+              post: resource.allowPost,
+              put: resource.allowPut,
+              delete: resource.allowDelete
+            }}
           />
         </div>
       </div>

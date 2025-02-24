@@ -1,6 +1,7 @@
 import { FieldBuilder } from "./FieldBuilder";
 import type { TemplateField } from "@/types/template";
 import { generateTemplate } from "@/utils/templateUtils";
+import { useMemo } from "react";
 
 interface TemplateEditorProps {
   mode: "visual" | "manual";
@@ -25,9 +26,17 @@ export function TemplateEditor({
   onRemoveField,
   onModeChange,
 }: TemplateEditorProps) {
-  const previewTemplate = mode === "visual" 
-    ? JSON.stringify(generateTemplate(fields), null, 2)
-    : JSON.stringify(JSON.parse(template || "{}"), null, 2);
+  // Get the preview template based on mode
+  const previewTemplate = useMemo(() => {
+    try {
+      if (mode === "visual") {
+        return JSON.stringify(generateTemplate(fields), null, 2);
+      }
+      return JSON.stringify(JSON.parse(template || "{}"), null, 2);
+    } catch (error) {
+      return "// Invalid JSON";
+    }
+  }, [mode, fields, template]);
 
   return (
     <div className="space-y-4">
@@ -82,7 +91,7 @@ export function TemplateEditor({
           <textarea
             value={template}
             onChange={(e) => onTemplateChange(e.target.value)}
-            className="w-full h-96 rounded-md border border-gray-600 bg-gray-700 text-gray-100 font-mono text-sm p-4"
+            className="w-full h-96 rounded-md border border-gray-600 bg-gray-700 text-gray-100 font-mono text-sm p-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             placeholder={`{
   "username": "$internet.userName",
   "details": {
@@ -90,6 +99,7 @@ export function TemplateEditor({
     "lastName": "$name.lastName"
   }
 }`}
+            spellCheck="false"
           />
         </div>
       )}
