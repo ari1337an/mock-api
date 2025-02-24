@@ -23,15 +23,42 @@ class ${typeName}Response(BaseModel):
 }
 
 // Router Setup
-export function generateFastAPIRouter({ resourceName }: GeneratorParams): string {
+export function generateFastAPIRouter({ resourceName, template }: GeneratorParams): string {
+  const typeName = toPascalCase(resourceName);
   return `from fastapi import APIRouter, HTTPException
 from uuid import uuid4
-from .models import ${toPascalCase(resourceName)}, ${toPascalCase(resourceName)}Create, ${toPascalCase(resourceName)}Response
+from .models import ${typeName}, ${typeName}Create, ${typeName}Response
 
 router = APIRouter(prefix="/${resourceName}", tags=["${resourceName}"])
 
 # In-memory storage
-${resourceName}_db = {}`;
+${resourceName}_db = {
+${generatePythonMockData(template, 3).map(data => 
+    `    "${data.id}": ${typeName}(**${JSON.stringify(data)})`
+  ).join(',\n')}
+}`;
+}
+
+function generatePythonMockData(template: Record<string, unknown>, count: number = 3): Array<Record<string, unknown>> {
+  return Array.from({ length: count }, (_, index) => ({
+    "id": `mock-id-${index + 1}`,
+    ...Object.entries(template).reduce((acc, [key, value]) => {
+      if (typeof value === 'string' && value.startsWith('$')) {
+        acc[key] = `Mock ${key} ${index + 1}`;
+      } else if (Array.isArray(value)) {
+        acc[key] = value.map((item, i) => 
+          typeof item === 'string' && item.startsWith('$') 
+            ? `Mock ${key} Item ${i + 1}` 
+            : item
+        );
+      } else if (typeof value === 'object' && value !== null) {
+        acc[key] = generatePythonMockData(value as Record<string, unknown>, 1)[0];
+      } else {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as Record<string, unknown>)
+  }));
 }
 
 // Individual Endpoints

@@ -97,6 +97,7 @@ export function ResourceTemplateEditor({ template, onUpdate }: ResourceTemplateE
       }
       setError(null);
     } catch (error) {
+      console.error("Error switching mode:", error);
       setError("Invalid JSON format");
     }
   };

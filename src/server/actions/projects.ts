@@ -2,6 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "../infrastructure/prisma/client";
+import type { Project, Resource } from "@prisma/client";
+
+interface ProjectWithResources extends Project {
+  resources: (Resource & {
+    _count?: {
+      data: number;
+    };
+  })[];
+}
 
 export async function createProject(data: { name: string }) {
   const project = await prisma.project.create({
@@ -35,11 +44,17 @@ export async function getProjectsWithoutResources() {
   });
 }
 
-export async function getProject(id: string) {
+export async function getProject(id: string): Promise<ProjectWithResources | null> {
   return await prisma.project.findUnique({
     where: { id },
     include: {
-      resources: true,
+      resources: {
+        include: {
+          _count: {
+            select: { data: true }
+          }
+        }
+      }
     },
   });
 }

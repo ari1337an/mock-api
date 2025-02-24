@@ -24,19 +24,44 @@ export interface ${typeName}Response {
 }`;
 }
 
-export function generateExpressRouter({ resourceName }: GeneratorParams): string {
+export function generateExpressRouter({ resourceName, template }: GeneratorParams): string {
   const typeName = toPascalCase(resourceName);
-  
   return `import express from 'express';
-import { validate${typeName} } from '../middleware/validation';
+import { v4 as uuidv4 } from 'uuid';
 import type { ${typeName}, ${typeName}Create } from '../types/${resourceName}';
 
 const router = express.Router();
 
-// In-memory storage
-const ${resourceName}DB = new Map<string, ${typeName}>();
+// In-memory storage with mock data
+const ${resourceName}DB = new Map<string, ${typeName}>(
+${generateJSMockData(template, 3).map(data => 
+    `  ["${data.id}", ${JSON.stringify(data)}]`
+  ).join(',\n')}
+);
 
 export default router;`;
+}
+
+function generateJSMockData(template: Record<string, unknown>, count: number = 3): Array<Record<string, unknown>> {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `mock-id-${index + 1}`,
+    ...Object.entries(template).reduce((acc, [key, value]) => {
+      if (typeof value === 'string' && value.startsWith('$')) {
+        acc[key] = `Mock ${key} ${index + 1}`;
+      } else if (Array.isArray(value)) {
+        acc[key] = value.map((item, i) => 
+          typeof item === 'string' && item.startsWith('$') 
+            ? `Mock ${key} Item ${i + 1}` 
+            : item
+        );
+      } else if (typeof value === 'object' && value !== null) {
+        acc[key] = generateJSMockData(value as Record<string, unknown>, 1)[0];
+      } else {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as Record<string, unknown>)
+  }));
 }
 
 export function generateExpressHandlers({ resourceName, allowedEndpoints }: GeneratorParams): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CodeGeneratorType } from '@/lib/generators';
 import cn from 'clsx';
 import { 
@@ -225,23 +225,33 @@ export function CodeGenerator({
   initialEndpoints = {}
 }: CodeGeneratorProps) {
   const [selectedFramework, setSelectedFramework] = useState<CodeGeneratorType>(CodeGeneratorType.NEXTJS);
-  const [selectedStep, setSelectedStep] = useState<string>('');
-  const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
-  const [code, setCode] = useState('');
+  const [state, setState] = useState({
+    selectedStep: '',
+    code: '',
+    completedSteps: new Set<string>()
+  });
   const [copied, setCopied] = useState(false);
+  const isInitialized = useRef(false);
   
   // Parse and validate endpoints with Zod
   const endpoints = EndpointSchema.parse(initialEndpoints);
 
+  // Memoize generator params
+  const generatorParams = useMemo<GeneratorParams>(() => ({
+    projectName,
+    resourceName,
+    version,
+    template,
+    allowedEndpoints: endpoints
+  }), [projectName, resourceName, version, template, endpoints]);
+
   // Filter steps based on selected endpoints
   const availableSteps = useMemo(() => {
     return FRAMEWORK_STEPS[selectedFramework].filter(step => {
-      // Always show types and setup if any endpoint is enabled
       if (step.id === StepType.TYPES || step.id === StepType.SETUP) {
         return Object.values(endpoints).some(Boolean);
       }
       
-      // Show specific endpoints based on selection
       switch (step.id) {
         case StepType.GET_ALL: return endpoints.get;
         case StepType.GET_ONE: return endpoints.getById;
@@ -253,46 +263,40 @@ export function CodeGenerator({
     });
   }, [selectedFramework, endpoints]);
 
-  // Handle framework change and initial setup
+  // Initialize first step only once
   useEffect(() => {
-    const initializeSteps = () => {
-      if (availableSteps.length > 0) {
-        const firstStep = availableSteps[0];
-        const params: GeneratorParams = {
-          projectName,
-          resourceName,
-          version,
-          template,
-          allowedEndpoints: endpoints
-        };
-        
-        const generatedCode = firstStep.generator(params);
-        
-        // Batch state updates
-        setSelectedStep(firstStep.id);
-        setCode(generatedCode);
-        setCompletedSteps(new Set([firstStep.id]));
-      } else {
-        // Batch state updates for no steps
-        setSelectedStep('');
-        setCode('// No endpoints selected');
-        setCompletedSteps(new Set());
-      }
-    };
+    if (isInitialized.current) return;
+    isInitialized.current = true;
 
-    initializeSteps();
-  }, [selectedFramework]); // Only depend on framework changes
+    if (availableSteps.length === 0) {
+      setState({
+        selectedStep: '',
+        code: '// No endpoints selected',
+        completedSteps: new Set()
+      });
+      return;
+    }
 
-  const handleGenerate = useCallback((step: Step) => {
-    const params: GeneratorParams = {
-      projectName,
-      resourceName,
-      version,
-      template,
-      allowedEndpoints: endpoints
-    };
+    const firstStep = availableSteps[0];
+    if (!firstStep) return;
+
+    const generatedCode = firstStep.generator(generatorParams);
     
-    const generatedCode = step.generator(params);
+    setState({
+      selectedStep: firstStep.id,
+      code: generatedCode,
+      completedSteps: new Set([firstStep.id])
+    });
+  }, [availableSteps, generatorParams]);
+
+  // Reset initialization when framework changes
+  useEffect(() => {
+    isInitialized.current = false;
+  }, [selectedFramework]);
+
+  // Handle step generation
+  const handleGenerate = useCallback((step: Step) => {
+    const generatedCode = step.generator(generatorParams);
     
     // Update completed steps
     const stepsToComplete = new Set<string>();
@@ -301,17 +305,20 @@ export function CodeGenerator({
       if (s.id === step.id) break;
     }
     
-    setCode(generatedCode);
-    setCompletedSteps(stepsToComplete);
-  }, [projectName, resourceName, version, template, endpoints, availableSteps]);
+    setState({
+      selectedStep: step.id,
+      code: generatedCode,
+      completedSteps: stepsToComplete
+    });
+  }, [availableSteps, generatorParams]);
 
-  const isStepDisabled = (step: Step) => {
+  const isStepDisabled = useCallback((step: Step) => {
     if (!step.requires?.length) return false;
-    return step.requires.some(req => !completedSteps.has(req));
-  };
+    return step.requires.some(req => !state.completedSteps.has(req));
+  }, [state.completedSteps]);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
+    await navigator.clipboard.writeText(state.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -344,12 +351,16 @@ export function CodeGenerator({
             <button
               key={step.id}
               onClick={() => {
-                setSelectedStep(step.id);
+                setState({
+                  selectedStep: step.id,
+                  code: '',
+                  completedSteps: new Set()
+                });
                 handleGenerate(step);
               }}
               className={cn(
                 "w-full text-left p-4 rounded-lg",
-                selectedStep === step.id
+                state.selectedStep === step.id
                   ? "bg-blue-500/10 text-white"
                   : "bg-gray-800/50 text-gray-300",
                 isStepDisabled(step) && "opacity-50 cursor-not-allowed"
@@ -359,7 +370,7 @@ export function CodeGenerator({
               <div className="flex items-start gap-3">
                 <div className={cn(
                   "w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0",
-                  selectedStep === step.id
+                  state.selectedStep === step.id
                     ? "bg-blue-500 text-white"
                     : "bg-gray-700 text-gray-400"
                 )}>
@@ -383,7 +394,7 @@ export function CodeGenerator({
 
         {/* Code Display */}
         <div className="col-span-8">
-          {code && (
+          {state.code && (
             <div className="relative group">
               <div className="flex items-center justify-between bg-[#1e1e1e] px-4 py-3 rounded-t-lg border-b border-gray-700/50">
                 <div className="flex items-center gap-2">
@@ -393,7 +404,7 @@ export function CodeGenerator({
                     <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
                   </div>
                   <code className="text-sm text-gray-400 ml-3">
-                    {availableSteps.find(s => s.id === selectedStep)?.path}
+                    {availableSteps.find(s => s.id === state.selectedStep)?.path}
                   </code>
                 </div>
                 <button
@@ -410,7 +421,7 @@ export function CodeGenerator({
                 </button>
               </div>
               <pre className="bg-[#1e1e1e] p-6 rounded-b-lg overflow-x-auto">
-                <code className="text-gray-100 text-sm font-mono">{code}</code>
+                <code className="text-gray-100 text-sm font-mono">{state.code}</code>
               </pre>
             </div>
           )}

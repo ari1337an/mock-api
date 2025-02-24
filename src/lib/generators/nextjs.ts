@@ -191,12 +191,67 @@ interface ${typeName}Response {
 interface ${typeName}Create extends Omit<${typeName}Data, 'id'> {}`;
 }
 
-export function generateNextSetup({ resourceName }: GeneratorParams): string {
+// Update the mock data generator to use the latest faker methods
+function generateMockData(template: Record<string, unknown>, count: number = 3): Array<Record<string, unknown>> {
+  // Map of deprecated methods to their new versions
+  const fakerMethodMap: Record<string, string> = {
+    'internet.userName': 'internet.username',
+    'address.streetAddress': 'location.streetAddress',
+    'address.city': 'location.city',
+    'address.state': 'location.state',
+    'address.country': 'location.country',
+    'address.zipCode': 'location.zipCode',
+  };
+
+  return Array.from({ length: count }, (_, index) => ({
+    id: `mock-${index + 1}`,
+    ...Object.entries(template).reduce((acc, [key, value]) => {
+      if (typeof value === 'string' && value.startsWith('$')) {
+        // Parse faker method and check for deprecated methods
+        const methodPath = value.slice(1); // Remove the $ prefix
+        const updatedPath = fakerMethodMap[methodPath] || methodPath;
+        acc[key] = `\${faker.${updatedPath}()}`; // Use updated method path
+      } else if (Array.isArray(value)) {
+        acc[key] = value.map(item => {
+          if (typeof item === 'string' && item.startsWith('$')) {
+            const methodPath = item.slice(1);
+            const updatedPath = fakerMethodMap[methodPath] || methodPath;
+            return `\${faker.${updatedPath}()}`;
+          }
+          return item;
+        });
+      } else if (typeof value === 'object' && value !== null) {
+        acc[key] = generateMockData(value as Record<string, unknown>, 1)[0];
+      } else {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as Record<string, unknown>)
+  }));
+}
+
+// Update the setup function to import faker
+export function generateNextSetup({ resourceName, template }: GeneratorParams): string {
+  const typeName = toPascalCase(resourceName);
   return `import { NextRequest, NextResponse } from "next/server";
 import { getErrorResponse } from "@/lib/utils";
+import { faker } from '@faker-js/faker';
 
 // In-memory storage
-const ${resourceName}DB = new Map<string, ${toPascalCase(resourceName)}Data>();`;
+const ${resourceName}DB = new Map<string, ${typeName}Data>();
+
+// Initialize with mock data
+const mockData = [
+${generateMockData(template, 3).map(data => `  ${JSON.stringify(data, null, 2)}`).join(',\n')}
+].map(item => ({
+  ...item,
+  id: crypto.randomUUID() // Generate real UUIDs for the IDs
+}));
+
+// Populate DB with mock data
+mockData.forEach(data => {
+  ${resourceName}DB.set(data.id, data);
+});`;
 }
 
 export function generateNextCreate({ resourceName }: GeneratorParams): string {

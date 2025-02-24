@@ -2,7 +2,7 @@ export const FAKER_MODULES = {
   internet: {
     label: "Internet",
     methods: {
-      userName: "Username",
+      username: "Username",
       email: "Email Address",
       password: "Password",
       url: "URL",
@@ -26,8 +26,8 @@ export const FAKER_MODULES = {
       imei: "IMEI",
     },
   },
-  address: {
-    label: "Address",
+  location: {
+    label: "Location",
     methods: {
       streetAddress: "Street Address",
       city: "City",
