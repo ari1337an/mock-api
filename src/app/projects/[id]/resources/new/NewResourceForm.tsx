@@ -1,8 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ResourceNameInput } from "@/components/resource/ResourceNameInput";
+import { VersionInput } from "@/components/resource/VersionInput";
+import { TemplateEditor } from "@/components/template/TemplateEditor";
+import { generateTemplate } from "@/utils/templateUtils";
 import { createResource } from "@/server/actions/resources";
+import type { TemplateField } from "@/types/template";
+import { EditorStateSchema, type EditorState } from "@/schemas/template";
 
 interface NewResourceFormProps {
   projectId: string;
@@ -12,38 +18,120 @@ export default function NewResourceForm({ projectId }: NewResourceFormProps) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [version, setVersion] = useState("v1");
-  const [templateText, setTemplateText] = useState("");
+  const [fields, setFields] = useState<TemplateField[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [editorState, setEditorState] = useState<EditorState>({
+    mode: "visual",
+    template: "{}",
+  });
 
-  // Function to convert string to slug
-  const toSlug = (str: string) => {
-    return str
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, "") // Remove non-word chars
-      .replace(/[\s_-]+/g, "-") // Replace spaces and _ with -
-      .replace(/^-+|-+$/g, ""); // Remove leading/trailing -
+  // Sync fields with manual template when switching modes
+  useEffect(() => {
+    if (editorState.mode === "manual" && fields.length > 0) {
+      const template = JSON.stringify(generateTemplate(fields), null, 2);
+      setEditorState(prev => ({ ...prev, template }));
+    }
+  }, [editorState.mode, fields]);
+
+  const handleUpdateField = (field: TemplateField, updates: Partial<TemplateField>) => {
+    const updateFieldInArray = (fieldsArray: TemplateField[]): TemplateField[] => {
+      return fieldsArray.map(f => {
+        if (f === field) {
+          return { ...f, ...updates };
+        }
+        if (f.type === "object" && f.fields) {
+          return { ...f, fields: updateFieldInArray(f.fields) };
+        }
+        if (f.type === "array" && f.items) {
+          if (f.items === field) {
+            return { ...f, items: { ...f.items, ...updates } };
+          }
+          if (f.items.fields) {
+            return { ...f, items: { ...f.items, fields: updateFieldInArray(f.items.fields) } };
+          }
+        }
+        return f;
+      });
+    };
+
+    setFields(updateFieldInArray(fields));
   };
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const sluggedName = toSlug(e.target.value);
-    setName(sluggedName);
+  const handleRemoveField = (fieldToRemove: TemplateField) => {
+    const removeFieldFromArray = (fieldsArray: TemplateField[]): TemplateField[] => {
+      return fieldsArray.filter(f => {
+        if (f === fieldToRemove) return false;
+        if (f.type === "object" && f.fields) {
+          f.fields = removeFieldFromArray(f.fields);
+        }
+        if (f.type === "array" && f.items && f.items.fields) {
+          f.items.fields = removeFieldFromArray(f.items.fields);
+        }
+        return true;
+      });
+    };
+
+    setFields(removeFieldFromArray(fields));
+  };
+
+  const handleAddNestedField = (parentField: TemplateField) => {
+    const updateFieldInArray = (fieldsArray: TemplateField[]): TemplateField[] => {
+      return fieldsArray.map(f => {
+        if (f === parentField) {
+          return {
+            ...f,
+            fields: [...(f.fields || []), { key: "", type: "simple" }]
+          };
+        }
+        if (f.type === "object" && f.fields) {
+          return { ...f, fields: updateFieldInArray(f.fields) };
+        }
+        return f;
+      });
+    };
+
+    setFields(updateFieldInArray(fields));
+  };
+
+  const handleModeChange = (mode: "visual" | "manual") => {
+    try {
+      const newState = { mode, template: editorState.template };
+      EditorStateSchema.parse(newState);
+      setEditorState(newState);
+    } catch (error) {
+      console.error(error);
+      setError("Invalid editor state");
+    }
+  };
+
+  const handleTemplateChange = (value: string) => {
+    try {
+      JSON.parse(value); // Validate JSON
+      const newState = { ...editorState, template: value };
+      EditorStateSchema.parse(newState);
+      setEditorState(newState);
+      setError(null);
+    } catch {
+      setError("Invalid JSON format");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const template = JSON.parse(templateText);
-      const endpoint = `${version}/${name}`;
+      const template = editorState.mode === "visual" 
+        ? generateTemplate(fields)
+        : JSON.parse(editorState.template);
+      
       await createResource(projectId, {
         name,
-        endpoint,
+        endpoint: `${version}/${name}`,
         template,
       });
       router.push(`/projects/${projectId}`);
     } catch (error) {
       console.error(error);
-      setError("Invalid JSON format. Please check your template.");
+      setError("Failed to create resource. Please try again.");
     }
   };
 
@@ -53,89 +141,31 @@ export default function NewResourceForm({ projectId }: NewResourceFormProps) {
         Create New Resource
       </h1>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-300">
-            Resource Name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={handleNameChange}
-            className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
-            placeholder="users-posts"
-            required
-            pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
-            title="Lowercase letters, numbers, and hyphens only. Must start and end with a letter or number."
-          />
-          <p className="mt-1 text-sm text-gray-400">
-            Use lowercase letters, numbers, and hyphens only (e.g.,
-            &quot;blog-posts&quot;, &quot;users&quot;, &quot;api-keys&quot;)
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300">
-            API Version
-          </label>
-          <div className="mt-1 flex rounded-md shadow-sm">
-            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-600 bg-gray-800 text-gray-400 sm:text-sm">
-              api/
-            </span>
-            <input
-              type="text"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              className="flex-1 block w-full rounded-none rounded-r-md border border-gray-600 bg-gray-700 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
-              placeholder="v1"
-              required
-            />
-          </div>
-          <p className="mt-1 text-sm text-gray-400">
-            Example: v1, v2, beta, etc.
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300">
-            Data Template
-          </label>
-          <textarea
-            rows={10}
-            value={templateText}
-            onChange={(e) => {
-              setTemplateText(e.target.value);
-              setError(null);
-            }}
-            className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-700 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono text-sm p-2"
-            placeholder={`{
-  "username": "$internet.userName",
-  "email": "$internet.email",
-  "status": "$helpers.arrayElement([\"active\", \"inactive\", \"pending\"])",
-  "profile": {
-    "firstName": "$name.firstName",
-    "lastName": "$name.lastName",
-    "age": "$number.int(18, 80)"
-  }
-}`}
-            required
-          />
-          {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
-          <p className="mt-2 text-sm text-gray-400">
-            Use $faker.method for dynamic values
-          </p>
-        </div>
-
+        <ResourceNameInput name={name} onChange={setName} />
+        <VersionInput version={version} onChange={setVersion} />
+        <TemplateEditor
+          mode={editorState.mode}
+          template={editorState.template}
+          fields={fields}
+          onAddField={() => setFields([...fields, { key: "", type: "simple" }])}
+          onUpdateField={handleUpdateField}
+          onRemoveField={handleRemoveField}
+          onAddNestedField={handleAddNestedField}
+          onTemplateChange={handleTemplateChange}
+          onModeChange={handleModeChange}
+        />
+        {error && <p className="text-sm text-red-500">{error}</p>}
         <div className="flex gap-4">
           <button
             type="button"
             onClick={() => router.push(`/projects/${projectId}`)}
-            className="flex-1 py-2 px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 transition-colors duration-200"
+            className="flex-1 py-2 px-4 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+            className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
           >
             Create Resource
           </button>
